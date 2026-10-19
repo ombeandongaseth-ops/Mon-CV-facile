@@ -1,0 +1,285 @@
+import streamlit as st
+import io
+import sqlite3
+import pandas as pd
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+import docx
+from docx.shared import Inches, Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+st.set_page_config(page_title="Générateur de CV Pro - UCAC-ICAM", page_icon="🎓", layout="wide")
+
+# --- BASE DE DONNÉES SQLITE ---
+conn = sqlite3.connect("cv_database.db", check_same_thread=False)
+c = conn.cursor()
+c.execute('''
+    CREATE TABLE IF NOT EXISTS cv_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nom TEXT,
+        titre TEXT,
+        telephone TEXT,
+        email TEXT,
+        adresse TEXT,
+        langues TEXT,
+        loisirs TEXT,
+        experiences TEXT,
+        formations TEXT,
+        competences TEXT
+    )
+''')
+conn.commit()
+
+# --- BARRE LATÉRALE : PARAMÈTRES & BASE DE DONNÉES ---
+st.sidebar.title("🛠️ Options & Thèmes")
+
+# Choix du Modèle
+modele_choisi = st.sidebar.selectbox(
+    "Choisissez un modèle de CV",
+    ["Minimaliste 2 Colonnes (Image)", "Classique Structure", "Moderne Épuré"]
+)
+
+# Thème de Couleurs
+couleur_fond = st.sidebar.color_picker("Couleur Fond Latéral", "#EFECE6")
+couleur_texte = st.sidebar.color_picker("Couleur Titres", "#2C3E50")
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("💾 Sauvegardes SQLite")
+
+# Gestion de la Sauvegarde
+def sauvegarder_cv(nom, titre, tel, email, adr, lang, lois, exp, edu, comp):
+    c.execute('''
+        INSERT INTO cv_records (nom, titre, telephone, email, adresse, langues, loisirs, experiences, formations, competences)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (nom, titre, tel, email, adr, lang, lois, exp, edu, comp))
+    conn.commit()
+
+records = pd.read_sql_query("SELECT id, nom, titre FROM cv_records", conn)
+if not records.empty:
+    cv_selectionne = st.sidebar.selectbox("Recharger un CV enregistré", records["id"].astype(str) + " - " + records["nom"])
+    if st.sidebar.button("Charger les données"):
+        cv_id = cv_selectionne.split(" - ")[0]
+        data = pd.read_sql_query(f"SELECT * FROM cv_records WHERE id={cv_id}", conn).iloc[0]
+        st.session_state["nom"] = data["nom"]
+        st.session_state["titre"] = data["titre"]
+        st.session_state["telephone"] = data["telephone"]
+        st.session_state["email"] = data["email"]
+        st.session_state["adresse"] = data["adresse"]
+        st.session_state["langues"] = data["langues"]
+        st.session_state["loisirs"] = data["loisirs"]
+        st.session_state["experiences"] = data["experiences"]
+        st.session_state["formations"] = data["formations"]
+        st.session_state["competences"] = data["competences"]
+        st.sidebar.success("Données chargées !")
+
+st.title("🎓 Générateur de CV pour Étudiants")
+st.write("Remplissez vos informations, personnalisez le style et téléchargez votre CV au format **PDF** ou **Word (.docx)**.")
+
+# --- FORMULAIRE D'INFORMATIONS ---
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("👤 Informations Personnelles")
+    photo = st.file_uploader("Photo de profil (PNG/JPG)", type=["png", "jpg", "jpeg"])
+    nom = st.text_input("Prénom & Nom", st.session_state.get("nom", "Célia Naudin"))
+    titre = st.text_input("Intitulé du poste / Titre", st.session_state.get("titre", "Chargée de communication"))
+    telephone = st.text_input("Téléphone", st.session_state.get("telephone", "123-456-7890"))
+    email = st.text_input("Email", st.session_state.get("email", "hello@reallygreatsite.com"))
+    adresse = st.text_input("Adresse / Ville", st.session_state.get("adresse", "123 Anywhere St., Any City"))
+    
+    st.markdown("---")
+    langues = st.text_area("Langues (séparées par des virgules)", st.session_state.get("langues", "Français, Anglais courant, Espagnol"))
+    loisirs = st.text_area("Loisirs (séparés par des virgules)", st.session_state.get("loisirs", "Mode, Photographie, Voyage"))
+
+with col2:
+    st.subheader("💼 Parcours & Compétences")
+    exp_input = st.text_area(
+        "Expériences Professionnelles (Format: Entreprise & Dates | Poste | Tâches séparées par des tirets)",
+        st.session_state.get("experiences", 
+            "Groupe Frame 2021 - 2026 | Chargée de communication | Gestion de la stratégie de communication - Développement des réseaux sociaux - Production de contenus éditoriaux\n\n"
+            "Bancollect 2019 - 2020 | Assistante communication en alternance | Création et publication de contenu - Veille sur les tendances"
+        ),
+        height=160
+    )
+    
+    edu_input = st.text_area(
+        "Formations & Diplômes (Format: Établissement & Dates | Diplôme)",
+        st.session_state.get("formations",
+            "École Amédé Autran 2017 - 2020 | Master communication en alternance\n"
+            "École Amédé Autran 2017 - 2020 | Licence marketing digital"
+        ),
+        height=100
+    )
+    
+    comp_input = st.text_area(
+        "Compétences clés (séparées par des virgules)",
+        st.session_state.get("competences", "Réseaux sociaux, Graphisme, Référencement SEO, Vidéo"),
+        height=80
+    )
+
+# --- GÉNÉRATEUR PDF (ReportLab) ---
+def generer_pdf():
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20)
+    story = []
+
+    styles = getSampleStyleSheet()
+    bg_color = colors.HexColor(couleur_fond)
+    primary_color = colors.HexColor(couleur_texte)
+
+    style_nom = ParagraphStyle('Nom', fontSize=22, leading=26, textColor=primary_color, fontName="Helvetica-Bold")
+    style_titre = ParagraphStyle('Titre', fontSize=12, leading=15, textColor=colors.HexColor("#555555"))
+    style_h2 = ParagraphStyle('H2', fontSize=12, leading=15, textColor=primary_color, fontName="Helvetica-Bold", spaceBefore=10, spaceAfter=4)
+    style_body = ParagraphStyle('Body', fontSize=9, leading=12, textColor=colors.HexColor("#333333"))
+    style_left = ParagraphStyle('LeftText', fontSize=9, leading=12, textColor=colors.HexColor("#444444"))
+
+    left_content = []
+    if photo is not None:
+        try:
+            img = RLImage(photo, width=70, height=70)
+            left_content.append(img)
+            left_content.append(Spacer(1, 8))
+        except Exception:
+            pass
+
+    left_content.append(Paragraph(f"<b>📞 Téléphone:</b><br/>{telephone}", style_left))
+    left_content.append(Spacer(1, 6))
+    left_content.append(Paragraph(f"<b>✉️ Email:</b><br/>{email}", style_left))
+    left_content.append(Spacer(1, 6))
+    left_content.append(Paragraph(f"<b>📍 Adresse:</b><br/>{adresse}", style_left))
+    left_content.append(Spacer(1, 10))
+    
+    left_content.append(Paragraph("<b>Langues</b>", style_h2))
+    for l in langues.split(','):
+        if l.strip():
+            left_content.append(Paragraph(f"• {l.strip()}", style_left))
+    
+    left_content.append(Spacer(1, 10))
+    left_content.append(Paragraph("<b>Loisirs</b>", style_h2))
+    for lo in loisirs.split(','):
+        if lo.strip():
+            left_content.append(Paragraph(f"• {lo.strip()}", style_left))
+
+    right_content = []
+    right_content.append(Paragraph(nom, style_nom))
+    right_content.append(Paragraph(titre, style_titre))
+    right_content.append(Spacer(1, 10))
+
+    right_content.append(Paragraph("✦ Expériences", style_h2))
+    for block in exp_input.split('\n\n'):
+        if block.strip():
+            lines = block.split('|')
+            entreprise_annee = lines[0].strip() if len(lines) > 0 else ""
+            poste_title = lines[1].strip() if len(lines) > 1 else ""
+            taches = lines[2].split('-') if len(lines) > 2 else []
+
+            right_content.append(Paragraph(f"<b>{entreprise_annee}</b>", style_body))
+            if poste_title:
+                right_content.append(Paragraph(f"<i>{poste_title}</i>", style_body))
+            for t in taches:
+                if t.strip():
+                    right_content.append(Paragraph(f"• {t.strip()}", style_body))
+            right_content.append(Spacer(1, 4))
+
+    right_content.append(Paragraph("✦ Formations", style_h2))
+    for line in edu_input.split('\n'):
+        if line.strip():
+            parts = line.split('|')
+            ecole = parts[0].strip() if len(parts) > 0 else ""
+            diplome = parts[1].strip() if len(parts) > 1 else ""
+            right_content.append(Paragraph(f"<b>{ecole}</b>", style_body))
+            if diplome:
+                right_content.append(Paragraph(f"{diplome}", style_body))
+            right_content.append(Spacer(1, 4))
+
+    right_content.append(Paragraph("✦ Compétences", style_h2))
+    comps = [c.strip() for c in comp_input.split(',') if c.strip()]
+    right_content.append(Paragraph(" • ".join(comps), style_body))
+
+    table_data = [[left_content, right_content]]
+    t = Table(table_data, colWidths=[170, 390])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), bg_color),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+    ]))
+
+    story.append(t)
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+# --- GÉNÉRATEUR WORD (.DOCX) ---
+def generer_docx():
+    doc_file = docx.Document()
+    
+    # Titre & En-tête
+    p = doc_file.add_paragraph()
+    run_nom = p.add_run(nom)
+    run_nom.bold = True
+    run_nom.font.size = Pt(20)
+    
+    p_titre = doc_file.add_paragraph()
+    run_titre = p_titre.add_run(titre)
+    run_titre.italic = True
+    run_titre.font.size = Pt(13)
+    
+    doc_file.add_paragraph(f"📞 {telephone} | ✉️ {email} | 📍 {adresse}")
+    doc_file.add_heading("Expériences Professionnelles", level=1)
+    
+    for block in exp_input.split('\n\n'):
+        if block.strip():
+            lines = block.split('|')
+            doc_file.add_paragraph(lines[0].strip(), style='List Bullet')
+            if len(lines) > 1:
+                doc_file.add_paragraph(lines[1].strip())
+
+    doc_file.add_heading("Formations", level=1)
+    for line in edu_input.split('\n'):
+        if line.strip():
+            doc_file.add_paragraph(line.strip(), style='List Bullet')
+
+    doc_file.add_heading("Compétences", level=1)
+    doc_file.add_paragraph(comp_input)
+
+    doc_file.add_heading("Langues & Loisirs", level=1)
+    doc_file.add_paragraph(f"Langues: {langues}\nLoisirs: {loisirs}")
+
+    buffer = io.BytesIO()
+    doc_file.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+# --- BOUTONS D'ACTION ET EXPORTATION ---
+st.markdown("---")
+btn_col1, btn_col2, btn_col3 = st.columns(3)
+
+with btn_col1:
+    if st.button("💾 Sauvegarder dans SQLite", use_container_width=True):
+        sauvegarder_cv(nom, titre, telephone, email, adresse, langues, loisirs, exp_input, edu_input, comp_input)
+        st.success("CV sauvegardé en base de données !")
+
+with btn_col2:
+    pdf_bytes = generer_pdf()
+    st.download_button(
+        label="📥 Télécharger en PDF",
+        data=pdf_bytes,
+        file_name=f"CV_{nom.replace(' ', '_')}.pdf",
+        mime="application/pdf",
+        use_container_width=True
+    )
+
+with btn_col3:
+    docx_bytes = generer_docx()
+    st.download_button(
+        label="📄 Télécharger en Word (.docx)",
+        data=docx_bytes,
+        file_name=f"CV_{nom.replace(' ', '_')}.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        use_container_width=True
+    )
