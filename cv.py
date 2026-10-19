@@ -8,7 +8,6 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 import docx
 from docx.shared import Inches, Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 st.set_page_config(page_title="Générateur de CV Pro - UCAC-ICAM", page_icon="🎓", layout="wide")
 
@@ -23,6 +22,8 @@ c.execute('''
         telephone TEXT,
         email TEXT,
         adresse TEXT,
+        tel_institut TEXT,
+        email_institut TEXT,
         langues TEXT,
         loisirs TEXT,
         experiences TEXT,
@@ -35,12 +36,6 @@ conn.commit()
 # --- BARRE LATÉRALE : PARAMÈTRES & BASE DE DONNÉES ---
 st.sidebar.title("🛠️ Options & Thèmes")
 
-# Choix du Modèle
-modele_choisi = st.sidebar.selectbox(
-    "Choisissez un modèle de CV",
-    ["Minimaliste 2 Colonnes (Image)", "Classique Structure", "Moderne Épuré"]
-)
-
 # Thème de Couleurs
 couleur_fond = st.sidebar.color_picker("Couleur Fond Latéral", "#EFECE6")
 couleur_texte = st.sidebar.color_picker("Couleur Titres", "#2C3E50")
@@ -49,11 +44,11 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("💾 Sauvegardes SQLite")
 
 # Gestion de la Sauvegarde
-def sauvegarder_cv(nom, titre, tel, email, adr, lang, lois, exp, edu, comp):
+def sauvegarder_cv(nom, titre, tel, email, adr, tel_inst, email_inst, lang, lois, exp, edu, comp):
     c.execute('''
-        INSERT INTO cv_records (nom, titre, telephone, email, adresse, langues, loisirs, experiences, formations, competences)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (nom, titre, tel, email, adr, lang, lois, exp, edu, comp))
+        INSERT INTO cv_records (nom, titre, telephone, email, adresse, tel_institut, email_institut, langues, loisirs, experiences, formations, competences)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (nom, titre, tel, email, adr, tel_inst, email_inst, lang, lois, exp, edu, comp))
     conn.commit()
 
 records = pd.read_sql_query("SELECT id, nom, titre FROM cv_records", conn)
@@ -67,57 +62,63 @@ if not records.empty:
         st.session_state["telephone"] = data["telephone"]
         st.session_state["email"] = data["email"]
         st.session_state["adresse"] = data["adresse"]
+        st.session_state["tel_institut"] = data["tel_institut"]
+        st.session_state["email_institut"] = data["email_institut"]
         st.session_state["langues"] = data["langues"]
         st.session_state["loisirs"] = data["loisirs"]
         st.session_state["experiences"] = data["experiences"]
         st.session_state["formations"] = data["formations"]
         st.session_state["competences"] = data["competences"]
-        st.sidebar.success("Données chargées !")
+        st.rerun()
 
 st.title("🎓 Générateur de CV pour Étudiants")
-st.write("Remplissez vos informations, personnalisez le style et téléchargez votre CV au format **PDF** ou **Word (.docx)**.")
+st.write("Remplissez vos informations, les coordonnées de votre institut, et téléchargez votre CV.")
 
 # --- FORMULAIRE D'INFORMATIONS ---
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("👤 Informations Personnelles")
+    st.subheader("👤 Informations Personnelles & Institut")
     photo = st.file_uploader("Photo de profil (PNG/JPG)", type=["png", "jpg", "jpeg"])
     nom = st.text_input("Prénom & Nom", st.session_state.get("nom", "Célia Naudin"))
     titre = st.text_input("Intitulé du poste / Titre", st.session_state.get("titre", "Chargée de communication"))
-    telephone = st.text_input("Téléphone", st.session_state.get("telephone", "123-456-7890"))
-    email = st.text_input("Email", st.session_state.get("email", "hello@reallygreatsite.com"))
+    telephone = st.text_input("Téléphone Personnel", st.session_state.get("telephone", "123-456-7890"))
+    email = st.text_input("Email Personnel", st.session_state.get("email", "hello@reallygreatsite.com"))
     adresse = st.text_input("Adresse / Ville", st.session_state.get("adresse", "123 Anywhere St., Any City"))
     
     st.markdown("---")
-    langues = st.text_area("Langues (séparées par des virgules)", st.session_state.get("langues", "Français, Anglais courant, Espagnol"))
-    loisirs = st.text_area("Loisirs (séparés par des virgules)", st.session_state.get("loisirs", "Mode, Photographie, Voyage"))
+    st.subheader("🏫 Coordonnées de l'Institut (ex: UCAC-ICAM)")
+    tel_institut = st.text_input("Téléphone de l'institut", st.session_state.get("tel_institut", "+242 06 000 0000"))
+    email_institut = st.text_input("Email de l'institut", st.session_state.get("email_institut", "contact@ucac-icam.org"))
 
 with col2:
     st.subheader("💼 Parcours & Compétences")
     exp_input = st.text_area(
-        "Expériences Professionnelles (Format: Entreprise & Dates | Poste | Tâches séparées par des tirets)",
+        "Expériences Professionnelles (Format: Entreprise & Dates | Poste | Tâches)",
         st.session_state.get("experiences", 
-            "Groupe Frame 2021 - 2026 | Chargée de communication | Gestion de la stratégie de communication - Développement des réseaux sociaux - Production de contenus éditoriaux\n\n"
-            "Bancollect 2019 - 2020 | Assistante communication en alternance | Création et publication de contenu - Veille sur les tendances"
+            "Groupe Frame 2021 - 2026 | Chargée de communication | Gestion de la stratégie de communication - Développement des réseaux sociaux\n\n"
+            "Bancollect 2019 - 2020 | Assistante communication | Création et publication de contenu"
         ),
-        height=160
+        height=140
     )
     
     edu_input = st.text_area(
         "Formations & Diplômes (Format: Établissement & Dates | Diplôme)",
         st.session_state.get("formations",
-            "École Amédé Autran 2017 - 2020 | Master communication en alternance\n"
-            "École Amédé Autran 2017 - 2020 | Licence marketing digital"
+            "UCAC-ICAM 2024 - Présent | Cycle Ingénieur Généraliste\n"
+            "École Amédé Autran 2017 - 2020 | Master communication"
         ),
-        height=100
+        height=90
     )
     
     comp_input = st.text_area(
         "Compétences clés (séparées par des virgules)",
-        st.session_state.get("competences", "Réseaux sociaux, Graphisme, Référencement SEO, Vidéo"),
-        height=80
+        st.session_state.get("competences", "Réseaux sociaux, Graphisme, Python, SolidWorks"),
+        height=70
     )
+    
+    langues = st.text_area("Langues", st.session_state.get("langues", "Français, Anglais"))
+    loisirs = st.text_area("Loisirs", st.session_state.get("loisirs", "Mode, Photographie, Voyage"))
 
 # --- GÉNÉRATEUR PDF (ReportLab) ---
 def generer_pdf():
@@ -144,19 +145,25 @@ def generer_pdf():
         except Exception:
             pass
 
-    left_content.append(Paragraph(f"<b>📞 Téléphone:</b><br/>{telephone}", style_left))
-    left_content.append(Spacer(1, 6))
-    left_content.append(Paragraph(f"<b>✉️ Email:</b><br/>{email}", style_left))
-    left_content.append(Spacer(1, 6))
+    left_content.append(Paragraph(f"<b>📞 Tél Perso:</b><br/>{telephone}", style_left))
+    left_content.append(Spacer(1, 4))
+    left_content.append(Paragraph(f"<b>✉️ Email Perso:</b><br/>{email}", style_left))
+    left_content.append(Spacer(1, 4))
     left_content.append(Paragraph(f"<b>📍 Adresse:</b><br/>{adresse}", style_left))
-    left_content.append(Spacer(1, 10))
+    left_content.append(Spacer(1, 8))
     
+    # Ajout de l'institut dans la colonne gauche
+    left_content.append(Paragraph("<b>🏫 Contact Institut</b>", style_h2))
+    left_content.append(Paragraph(f"📞 Tél: {tel_institut}", style_left))
+    left_content.append(Paragraph(f"✉️ {email_institut}", style_left))
+    left_content.append(Spacer(1, 8))
+
     left_content.append(Paragraph("<b>Langues</b>", style_h2))
     for l in langues.split(','):
         if l.strip():
             left_content.append(Paragraph(f"• {l.strip()}", style_left))
     
-    left_content.append(Spacer(1, 10))
+    left_content.append(Spacer(1, 8))
     left_content.append(Paragraph("<b>Loisirs</b>", style_h2))
     for lo in loisirs.split(','):
         if lo.strip():
@@ -203,8 +210,8 @@ def generer_pdf():
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (0, -1), bg_color),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 10),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (0, -1), 10),
+        ('RIGHTPADDING', (0, 0), (0, -1), 10),
         ('TOPPADDING', (0, 0), (-1, -1), 10),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
     ]))
@@ -218,7 +225,6 @@ def generer_pdf():
 def generer_docx():
     doc_file = docx.Document()
     
-    # Titre & En-tête
     p = doc_file.add_paragraph()
     run_nom = p.add_run(nom)
     run_nom.bold = True
@@ -229,15 +235,13 @@ def generer_docx():
     run_titre.italic = True
     run_titre.font.size = Pt(13)
     
-    doc_file.add_paragraph(f"📞 {telephone} | ✉️ {email} | 📍 {adresse}")
-    doc_file.add_heading("Expériences Professionnelles", level=1)
+    doc_file.add_paragraph(f"📞 Tél: {telephone} | ✉️ {email} | 📍 {adresse}")
+    doc_file.add_paragraph(f"🏫 Institut - Tél: {tel_institut} | Email: {email_institut}")
     
+    doc_file.add_heading("Expériences Professionnelles", level=1)
     for block in exp_input.split('\n\n'):
         if block.strip():
-            lines = block.split('|')
-            doc_file.add_paragraph(lines[0].strip(), style='List Bullet')
-            if len(lines) > 1:
-                doc_file.add_paragraph(lines[1].strip())
+            doc_file.add_paragraph(block.strip(), style='List Bullet')
 
     doc_file.add_heading("Formations", level=1)
     for line in edu_input.split('\n'):
@@ -261,8 +265,8 @@ btn_col1, btn_col2, btn_col3 = st.columns(3)
 
 with btn_col1:
     if st.button("💾 Sauvegarder dans SQLite", use_container_width=True):
-        sauvegarder_cv(nom, titre, telephone, email, adresse, langues, loisirs, exp_input, edu_input, comp_input)
-        st.success("CV sauvegardé en base de données !")
+        sauvegarder_cv(nom, titre, telephone, email, adresse, tel_institut, email_institut, langues, loisirs, exp_input, edu_input, comp_input)
+        st.success("CV sauvegardé en base de données avec succès !")
 
 with btn_col2:
     pdf_bytes = generer_pdf()
