@@ -155,17 +155,26 @@ with col2:
     langues = st.text_area("Langues", st.session_state.get("langues", "Français (langue maternelle), Anglais (conversationnel)"))
     loisirs = st.text_area("Loisirs", st.session_state.get("loisirs", "Cuisine, Sport, Lecture"))
 
-# --- GÉNÉRATEUR PDF (ReportLab Sécurisé) ---
+# --- FONCTION DE FOND DE PAGE (Pleine Hauteur 100%) ---
+def draw_full_sidebar(canvas, doc):
+    canvas.saveState()
+    bg_color = colors.HexColor(couleur_fond)
+    canvas.setFillColor(bg_color)
+    # Dessine un rectangle beige de x=0 jusqu'à 185 points de large, sur toute la hauteur de la page (792 points)
+    canvas.rect(0, 0, 185, 792, fill=1, stroke=0)
+    canvas.restoreState()
+
+# --- GÉNÉRATEUR PDF ---
 def generer_pdf():
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20)
+    # Marges réduites pour occuper toute la surface
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=15, leftMargin=15, topMargin=15, bottomMargin=15)
     story = []
 
     styles = getSampleStyleSheet()
-    bg_color = colors.HexColor(couleur_fond)
     primary_color = colors.HexColor(couleur_texte)
 
-    style_nom = ParagraphStyle('Nom', fontSize=20, leading=24, textColor=primary_color, fontName="Helvetica-Bold")
+    style_nom = ParagraphStyle('Nom', fontSize=22, leading=26, textColor=primary_color, fontName="Helvetica-Bold")
     style_titre = ParagraphStyle('Titre', fontSize=11, leading=14, textColor=colors.HexColor("#555555"))
     style_h2 = ParagraphStyle('H2', fontSize=11, leading=14, textColor=primary_color, fontName="Helvetica-Bold", spaceBefore=8, spaceAfter=3)
     style_body = ParagraphStyle('Body', fontSize=8.5, leading=11, textColor=colors.HexColor("#333333"))
@@ -204,7 +213,7 @@ def generer_pdf():
         if lo.strip():
             left_content.append(Paragraph(f"• {lo.strip()}", style_left))
 
-    # --- CONTENU DROIT ---
+    # --- CONTENU DROIT (Nom collé tout en haut) ---
     right_content = []
     right_content.append(Paragraph(nom, style_nom))
     right_content.append(Paragraph(titre, style_titre))
@@ -241,19 +250,20 @@ def generer_pdf():
     comps = [c.strip() for c in comp_input.split(',') if c.strip()]
     right_content.append(Paragraph(" • ".join(comps), style_body))
 
+    # --- TABLEAU DE MISE EN PAGE ---
     table_data = [[left_content, right_content]]
-    t = Table(table_data, colWidths=[170, 392])
+    t = Table(table_data, colWidths=[175, 407])
     t.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), bg_color),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (0, -1), 10),
         ('RIGHTPADDING', (0, 0), (0, -1), 10),
-        ('TOPPADDING', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
     ]))
 
     story.append(t)
-    doc.build(story)
+    # onFirstPage applique le fond beige sur toute la hauteur de la page
+    doc.build(story, onFirstPage=draw_full_sidebar)
     buffer.seek(0)
     return buffer
 
