@@ -155,18 +155,17 @@ with col2:
     langues = st.text_area("Langues", st.session_state.get("langues", "Français (langue maternelle), Anglais (conversationnel)"))
     loisirs = st.text_area("Loisirs", st.session_state.get("loisirs", "Cuisine, Sport, Lecture"))
 
-# --- GÉNÉRATEUR PDF (ReportLab Pleine Page & Nom Collé en Haut) ---
+# --- GÉNÉRATEUR PDF (ReportLab Sécurisé) ---
 def generer_pdf():
     buffer = io.BytesIO()
-    # Marges à 0 pour occuper toute la surface de la page (Letter: 612 x 792 points)
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=0, leftMargin=0, topMargin=0, bottomMargin=0)
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20)
     story = []
 
     styles = getSampleStyleSheet()
     bg_color = colors.HexColor(couleur_fond)
     primary_color = colors.HexColor(couleur_texte)
 
-    style_nom = ParagraphStyle('Nom', fontSize=22, leading=26, textColor=primary_color, fontName="Helvetica-Bold")
+    style_nom = ParagraphStyle('Nom', fontSize=20, leading=24, textColor=primary_color, fontName="Helvetica-Bold")
     style_titre = ParagraphStyle('Titre', fontSize=11, leading=14, textColor=colors.HexColor("#555555"))
     style_h2 = ParagraphStyle('H2', fontSize=11, leading=14, textColor=primary_color, fontName="Helvetica-Bold", spaceBefore=8, spaceAfter=3)
     style_body = ParagraphStyle('Body', fontSize=8.5, leading=11, textColor=colors.HexColor("#333333"))
@@ -207,8 +206,6 @@ def generer_pdf():
 
     # --- CONTENU DROIT ---
     right_content = []
-    # Espace minimal pour coller le nom tout en haut
-    right_content.append(Spacer(1, 15))
     right_content.append(Paragraph(nom, style_nom))
     right_content.append(Paragraph(titre, style_titre))
     right_content.append(Spacer(1, 8))
@@ -244,16 +241,15 @@ def generer_pdf():
     comps = [c.strip() for c in comp_input.split(',') if c.strip()]
     right_content.append(Paragraph(" • ".join(comps), style_body))
 
-    # --- TABLEAU PLEINE PAGE (Hauteur = 792 points) ---
     table_data = [[left_content, right_content]]
-    t = Table(table_data, colWidths=[180, 432], rowHeights=[792])
+    t = Table(table_data, colWidths=[170, 392])
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (0, -1), bg_color),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING', (0, 0), (0, -1), 15),
-        ('RIGHTPADDING', (0, 0), (0, -1), 20),
-        ('TOPPADDING', (0, 0), (-1, -1), 0),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ('LEFTPADDING', (0, 0), (0, -1), 10),
+        ('RIGHTPADDING', (0, 0), (0, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
     ]))
 
     story.append(t)
