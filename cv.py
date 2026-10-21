@@ -51,7 +51,7 @@ if fichier_pdf_import is not None:
         for page in reader.pages:
             texte_extrait += page.extract_text() + "\n"
 
-        # Extraction simple des blocs de texte si la lecture réussi
+        # Pré-remplissage automatique basé sur l'import
         st.session_state["nom"] = "NINON OMBEANDONGA"
         st.session_state["titre"] = "Étudiant en génie industriel - UCAC-ICAM"
         st.session_state["telephone"] = "06 975 79 69"
@@ -155,28 +155,30 @@ with col2:
     langues = st.text_area("Langues", st.session_state.get("langues", "Français (langue maternelle), Anglais (conversationnel)"))
     loisirs = st.text_area("Loisirs", st.session_state.get("loisirs", "Cuisine, Sport, Lecture"))
 
-# --- GÉNÉRATEUR PDF (ReportLab) ---
+# --- GÉNÉRATEUR PDF (ReportLab Pleine Page & Nom Collé en Haut) ---
 def generer_pdf():
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20)
+    # Marges à 0 pour occuper toute la surface de la page (Letter: 612 x 792 points)
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=0, leftMargin=0, topMargin=0, bottomMargin=0)
     story = []
 
     styles = getSampleStyleSheet()
     bg_color = colors.HexColor(couleur_fond)
     primary_color = colors.HexColor(couleur_texte)
 
-    style_nom = ParagraphStyle('Nom', fontSize=20, leading=24, textColor=primary_color, fontName="Helvetica-Bold")
+    style_nom = ParagraphStyle('Nom', fontSize=22, leading=26, textColor=primary_color, fontName="Helvetica-Bold")
     style_titre = ParagraphStyle('Titre', fontSize=11, leading=14, textColor=colors.HexColor("#555555"))
-    style_h2 = ParagraphStyle('H2', fontSize=11, leading=14, textColor=primary_color, fontName="Helvetica-Bold", spaceBefore=10, spaceAfter=4)
-    style_body = ParagraphStyle('Body', fontSize=9, leading=12, textColor=colors.HexColor("#333333"))
-    style_left = ParagraphStyle('LeftText', fontSize=9, leading=12, textColor=colors.HexColor("#444444"))
+    style_h2 = ParagraphStyle('H2', fontSize=11, leading=14, textColor=primary_color, fontName="Helvetica-Bold", spaceBefore=8, spaceAfter=3)
+    style_body = ParagraphStyle('Body', fontSize=8.5, leading=11, textColor=colors.HexColor("#333333"))
+    style_left = ParagraphStyle('LeftText', fontSize=8.5, leading=11, textColor=colors.HexColor("#444444"))
 
+    # --- CONTENU GAUCHE (Barre Latérale) ---
     left_content = []
     if photo is not None:
         try:
             img = RLImage(photo, width=70, height=70)
             left_content.append(img)
-            left_content.append(Spacer(1, 8))
+            left_content.append(Spacer(1, 6))
         except Exception:
             pass
 
@@ -185,28 +187,31 @@ def generer_pdf():
     left_content.append(Paragraph(f"<b>✉️ Email Perso:</b><br/>{email}", style_left))
     left_content.append(Spacer(1, 4))
     left_content.append(Paragraph(f"<b>📍 Adresse:</b><br/>{adresse}", style_left))
-    left_content.append(Spacer(1, 8))
+    left_content.append(Spacer(1, 6))
     
     left_content.append(Paragraph("<b>🏫 Contact Institut</b>", style_h2))
     left_content.append(Paragraph(f"📞 Tél: {tel_institut}", style_left))
     left_content.append(Paragraph(f"✉️ {email_institut}", style_left))
-    left_content.append(Spacer(1, 8))
+    left_content.append(Spacer(1, 6))
 
     left_content.append(Paragraph("<b>Langues</b>", style_h2))
     for l in langues.split(','):
         if l.strip():
             left_content.append(Paragraph(f"• {l.strip()}", style_left))
     
-    left_content.append(Spacer(1, 8))
+    left_content.append(Spacer(1, 6))
     left_content.append(Paragraph("<b>Loisirs</b>", style_h2))
     for lo in loisirs.split(','):
         if lo.strip():
             left_content.append(Paragraph(f"• {lo.strip()}", style_left))
 
+    # --- CONTENU DROIT ---
     right_content = []
+    # Espace minimal pour coller le nom tout en haut
+    right_content.append(Spacer(1, 15))
     right_content.append(Paragraph(nom, style_nom))
     right_content.append(Paragraph(titre, style_titre))
-    right_content.append(Spacer(1, 10))
+    right_content.append(Spacer(1, 8))
 
     right_content.append(Paragraph("✦ Expériences Professionnelles", style_h2))
     for block in exp_input.split('\n\n'):
@@ -222,7 +227,7 @@ def generer_pdf():
             for t in taches:
                 if t.strip():
                     right_content.append(Paragraph(f"• {t.strip()}", style_body))
-            right_content.append(Spacer(1, 4))
+            right_content.append(Spacer(1, 3))
 
     right_content.append(Paragraph("✦ Formations", style_h2))
     for line in edu_input.split('\n'):
@@ -233,21 +238,22 @@ def generer_pdf():
             right_content.append(Paragraph(f"<b>{ecole}</b>", style_body))
             if diplome:
                 right_content.append(Paragraph(f"{diplome}", style_body))
-            right_content.append(Spacer(1, 4))
+            right_content.append(Spacer(1, 2))
 
     right_content.append(Paragraph("✦ Compétences", style_h2))
     comps = [c.strip() for c in comp_input.split(',') if c.strip()]
     right_content.append(Paragraph(" • ".join(comps), style_body))
 
+    # --- TABLEAU PLEINE PAGE (Hauteur = 792 points) ---
     table_data = [[left_content, right_content]]
-    t = Table(table_data, colWidths=[170, 390])
+    t = Table(table_data, colWidths=[180, 432], rowHeights=[792])
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (0, -1), bg_color),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING', (0, 0), (0, -1), 10),
-        ('RIGHTPADDING', (0, 0), (0, -1), 10),
-        ('TOPPADDING', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (0, -1), 15),
+        ('RIGHTPADDING', (0, 0), (0, -1), 20),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
     ]))
 
     story.append(t)
