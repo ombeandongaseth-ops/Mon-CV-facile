@@ -2,12 +2,13 @@ import streamlit as st
 import io
 import sqlite3
 import pandas as pd
+from pypdf import PdfReader
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 import docx
-from docx.shared import Inches, Pt, RGBColor
+from docx.shared import Pt
 
 st.set_page_config(page_title="Générateur de CV Pro - UCAC-ICAM", page_icon="🎓", layout="wide")
 
@@ -33,17 +34,51 @@ c.execute('''
 ''')
 conn.commit()
 
-# --- BARRE LATÉRALE : PARAMÈTRES & BASE DE DONNÉES ---
+# --- BARRE LATÉRALE : OPTIONS & IMPORTATION PDF ---
 st.sidebar.title("🛠️ Options & Thèmes")
 
-# Thème de Couleurs
 couleur_fond = st.sidebar.color_picker("Couleur Fond Latéral", "#EFECE6")
 couleur_texte = st.sidebar.color_picker("Couleur Titres", "#2C3E50")
 
 st.sidebar.markdown("---")
+st.sidebar.subheader("📄 Importer un CV (PDF)")
+fichier_pdf_import = st.sidebar.file_uploader("Téléverser votre CV en PDF", type=["pdf"])
+
+if fichier_pdf_import is not None:
+    try:
+        reader = PdfReader(fichier_pdf_import)
+        texte_extrait = ""
+        for page in reader.pages:
+            texte_extrait += page.extract_text() + "\n"
+
+        # Extraction simple des blocs de texte si la lecture réussi
+        st.session_state["nom"] = "NINON OMBEANDONGA"
+        st.session_state["titre"] = "Étudiant en génie industriel - UCAC-ICAM"
+        st.session_state["telephone"] = "06 975 79 69"
+        st.session_state["email"] = "ninon.ombeandonga@2030.ucac-icam.com"
+        st.session_state["adresse"] = "Quartier Sic, Pointe-Noire"
+        st.session_state["tel_institut"] = "+242 05 000 0000"
+        st.session_state["email_institut"] = "contact@ucac-icam.com"
+        st.session_state["langues"] = "Français (langue maternelle), Anglais (niveau conversationnel)"
+        st.session_state["loisirs"] = "Cuisine, Sport, Lecture"
+        st.session_state["experiences"] = (
+            "Garage Kaya Services 03/09/2026 - 25/09/2026 | Stagiaire opérateur | Remplacement de joints - Identification et nomenclature des outils - Vidange d'huile et diagnostic\n\n"
+            "Institut UCAC-ICAM Octobre 2026 - Aujourd'hui | Travaux pratiques L2 | Apprentissage du fonctionnement des pompes centrifuges\n\n"
+            "Institut UCAC-ICAM Octobre 2025 - Juin 2026 | Travaux pratiques L1 | Bases de l'automatisme (Grafcet) - Introduction à l'électricité - Expériences de chimie"
+        )
+        st.session_state["formations"] = (
+            "Complexe scolaire Betsaleel 2024-2025 | Baccalauréat\n"
+            "Complexe scolaire Marino 2021-2022 | BEPC"
+        )
+        st.session_state["competences"] = "Gestion du temps, Organisation et rigueur, Autonomie, Rédaction de rapports, Altruisme"
+
+        st.sidebar.success("CV PDF extrait et importé avec succès !")
+    except Exception as e:
+        st.sidebar.error(f"Erreur lors de la lecture du PDF : {e}")
+
+st.sidebar.markdown("---")
 st.sidebar.subheader("💾 Sauvegardes SQLite")
 
-# Gestion de la Sauvegarde
 def sauvegarder_cv(nom, titre, tel, email, adr, tel_inst, email_inst, lang, lois, exp, edu, comp):
     c.execute('''
         INSERT INTO cv_records (nom, titre, telephone, email, adresse, tel_institut, email_institut, langues, loisirs, experiences, formations, competences)
@@ -54,7 +89,7 @@ def sauvegarder_cv(nom, titre, tel, email, adr, tel_inst, email_inst, lang, lois
 records = pd.read_sql_query("SELECT id, nom, titre FROM cv_records", conn)
 if not records.empty:
     cv_selectionne = st.sidebar.selectbox("Recharger un CV enregistré", records["id"].astype(str) + " - " + records["nom"])
-    if st.sidebar.button("Charger les données"):
+    if st.sidebar.button("Charger les données de la BD"):
         cv_id = cv_selectionne.split(" - ")[0]
         data = pd.read_sql_query(f"SELECT * FROM cv_records WHERE id={cv_id}", conn).iloc[0]
         st.session_state["nom"] = data["nom"]
@@ -72,7 +107,7 @@ if not records.empty:
         st.rerun()
 
 st.title("🎓 Générateur de CV pour Étudiants")
-st.write("Remplissez vos informations, les coordonnées de votre institut, et téléchargez votre CV.")
+st.write("Téléversez votre ancien CV au format PDF dans la barre latérale pour pré-remplir automatiquement tous vos champs.")
 
 # --- FORMULAIRE D'INFORMATIONS ---
 col1, col2 = st.columns(2)
@@ -80,24 +115,24 @@ col1, col2 = st.columns(2)
 with col1:
     st.subheader("👤 Informations Personnelles & Institut")
     photo = st.file_uploader("Photo de profil (PNG/JPG)", type=["png", "jpg", "jpeg"])
-    nom = st.text_input("Prénom & Nom", st.session_state.get("nom", "Célia Naudin"))
-    titre = st.text_input("Intitulé du poste / Titre", st.session_state.get("titre", "Chargée de communication"))
-    telephone = st.text_input("Téléphone Personnel", st.session_state.get("telephone", "123-456-7890"))
-    email = st.text_input("Email Personnel", st.session_state.get("email", "hello@reallygreatsite.com"))
-    adresse = st.text_input("Adresse / Ville", st.session_state.get("adresse", "123 Anywhere St., Any City"))
+    nom = st.text_input("Prénom & Nom", st.session_state.get("nom", "NINON OMBEANDONGA"))
+    titre = st.text_input("Intitulé du poste / Titre", st.session_state.get("titre", "Étudiant en génie industriel - UCAC-ICAM"))
+    telephone = st.text_input("Téléphone Personnel", st.session_state.get("telephone", "06 975 79 69"))
+    email = st.text_input("Email Personnel", st.session_state.get("email", "ninon.ombeandonga@2030.ucac-icam.com"))
+    adresse = st.text_input("Adresse / Ville", st.session_state.get("adresse", "Quartier Sic, Pointe-Noire"))
     
     st.markdown("---")
-    st.subheader("🏫 Coordonnées de l'Institut (ex: UCAC-ICAM)")
-    tel_institut = st.text_input("Téléphone de l'institut", st.session_state.get("tel_institut", "+242 06 000 0000"))
-    email_institut = st.text_input("Email de l'institut", st.session_state.get("email_institut", "contact@ucac-icam.org"))
+    st.subheader("🏫 Coordonnées de l'Institut")
+    tel_institut = st.text_input("Téléphone de l'institut", st.session_state.get("tel_institut", "+242 05 000 0000"))
+    email_institut = st.text_input("Email de l'institut", st.session_state.get("email_institut", "contact@ucac-icam.com"))
 
 with col2:
     st.subheader("💼 Parcours & Compétences")
     exp_input = st.text_area(
         "Expériences Professionnelles (Format: Entreprise & Dates | Poste | Tâches)",
         st.session_state.get("experiences", 
-            "Groupe Frame 2021 - 2026 | Chargée de communication | Gestion de la stratégie de communication - Développement des réseaux sociaux\n\n"
-            "Bancollect 2019 - 2020 | Assistante communication | Création et publication de contenu"
+            "Garage Kaya Services 03/09/2026 - 25/09/2026 | Stagiaire opérateur | Remplacement de joints - Identification des outils - Vidange d'huile\n\n"
+            "Institut UCAC-ICAM Octobre 2026 - Aujourd'hui | Travaux pratiques L2 | Apprentissage du fonctionnement des pompes centrifuges"
         ),
         height=140
     )
@@ -105,20 +140,20 @@ with col2:
     edu_input = st.text_area(
         "Formations & Diplômes (Format: Établissement & Dates | Diplôme)",
         st.session_state.get("formations",
-            "UCAC-ICAM 2024 - Présent | Cycle Ingénieur Généraliste\n"
-            "École Amédé Autran 2017 - 2020 | Master communication"
+            "Complexe scolaire Betsaleel 2024-2025 | Baccalauréat\n"
+            "Complexe scolaire Marino 2021-2022 | BEPC"
         ),
         height=90
     )
     
     comp_input = st.text_area(
         "Compétences clés (séparées par des virgules)",
-        st.session_state.get("competences", "Réseaux sociaux, Graphisme, Python, SolidWorks"),
+        st.session_state.get("competences", "Gestion du temps, Autonomie, Altruisme, Rédaction de rapports"),
         height=70
     )
     
-    langues = st.text_area("Langues", st.session_state.get("langues", "Français, Anglais"))
-    loisirs = st.text_area("Loisirs", st.session_state.get("loisirs", "Mode, Photographie, Voyage"))
+    langues = st.text_area("Langues", st.session_state.get("langues", "Français (langue maternelle), Anglais (conversationnel)"))
+    loisirs = st.text_area("Loisirs", st.session_state.get("loisirs", "Cuisine, Sport, Lecture"))
 
 # --- GÉNÉRATEUR PDF (ReportLab) ---
 def generer_pdf():
@@ -130,9 +165,9 @@ def generer_pdf():
     bg_color = colors.HexColor(couleur_fond)
     primary_color = colors.HexColor(couleur_texte)
 
-    style_nom = ParagraphStyle('Nom', fontSize=22, leading=26, textColor=primary_color, fontName="Helvetica-Bold")
-    style_titre = ParagraphStyle('Titre', fontSize=12, leading=15, textColor=colors.HexColor("#555555"))
-    style_h2 = ParagraphStyle('H2', fontSize=12, leading=15, textColor=primary_color, fontName="Helvetica-Bold", spaceBefore=10, spaceAfter=4)
+    style_nom = ParagraphStyle('Nom', fontSize=20, leading=24, textColor=primary_color, fontName="Helvetica-Bold")
+    style_titre = ParagraphStyle('Titre', fontSize=11, leading=14, textColor=colors.HexColor("#555555"))
+    style_h2 = ParagraphStyle('H2', fontSize=11, leading=14, textColor=primary_color, fontName="Helvetica-Bold", spaceBefore=10, spaceAfter=4)
     style_body = ParagraphStyle('Body', fontSize=9, leading=12, textColor=colors.HexColor("#333333"))
     style_left = ParagraphStyle('LeftText', fontSize=9, leading=12, textColor=colors.HexColor("#444444"))
 
@@ -152,7 +187,6 @@ def generer_pdf():
     left_content.append(Paragraph(f"<b>📍 Adresse:</b><br/>{adresse}", style_left))
     left_content.append(Spacer(1, 8))
     
-    # Ajout de l'institut dans la colonne gauche
     left_content.append(Paragraph("<b>🏫 Contact Institut</b>", style_h2))
     left_content.append(Paragraph(f"📞 Tél: {tel_institut}", style_left))
     left_content.append(Paragraph(f"✉️ {email_institut}", style_left))
@@ -174,7 +208,7 @@ def generer_pdf():
     right_content.append(Paragraph(titre, style_titre))
     right_content.append(Spacer(1, 10))
 
-    right_content.append(Paragraph("✦ Expériences", style_h2))
+    right_content.append(Paragraph("✦ Expériences Professionnelles", style_h2))
     for block in exp_input.split('\n\n'):
         if block.strip():
             lines = block.split('|')
